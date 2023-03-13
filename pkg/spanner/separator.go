@@ -21,43 +21,40 @@ package spanner
 
 import (
 	"strings"
-)
 
-type delimiter int
-
-const (
-	delimiterUndefined delimiter = iota
-	delimiterHorizontal
+	// temporary use
+	"github.com/chzyer/readline/runes"
 )
 
 type inputStatement struct {
-	statement string
-	delim     delimiter
+	statement  string
+	terminator string
 }
 
-func (d delimiter) String() string {
-	switch d {
-	case delimiterUndefined:
-		return ""
-	case delimiterHorizontal:
-		return ";"
-	}
-	return ""
-}
-
-func separateInput(input string) []inputStatement {
-	return newSeparator(input).separate()
+// separateInput separates input for each statement.
+// By default, input will be separated by terminating semicolons `;`.
+// In addition, customTerminators can be passed, and they will be treated as terminating semicolons.
+func separateInput(input string, customTerminators ...string) []inputStatement {
+	return newSeparator(input, customTerminators).separate()
 }
 
 type separator struct {
 	str []rune // remaining input
 	sb  *strings.Builder
+	// terms is custom terminators.
+	// It isn't []string to minimize string-rune conversions.
+	terms [][]rune
 }
 
-func newSeparator(s string) *separator {
+func newSeparator(s string, terms []string) *separator {
+	var runeTerms [][]rune
+	for _, term := range terms {
+		runeTerms = append(runeTerms, []rune(term))
+	}
 	return &separator{
-		str: []rune(s),
-		sb:  &strings.Builder{},
+		str:   []rune(s),
+		sb:    &strings.Builder{},
+		terms: runeTerms,
 	}
 }
 
@@ -261,14 +258,31 @@ func (s *separator) separate() []inputStatement {
 		// horizontal delim
 		case ';':
 			statements = append(statements, inputStatement{
-				statement: strings.TrimSpace(s.sb.String()),
-				delim:     delimiterHorizontal,
+				statement:  strings.TrimSpace(s.sb.String()),
+				terminator: ";",
 			})
 			s.sb.Reset()
 			s.str = s.str[1:]
 		default:
-			s.sb.WriteRune(s.str[0])
-			s.str = s.str[1:]
+			// TODO: may need some optimization
+			var found bool
+			for _, term := range s.terms {
+				if runes.HasPrefix(s.str, term) {
+					statements = append(statements, inputStatement{
+						statement:  strings.TrimSpace(s.sb.String()),
+						terminator: string(term),
+					})
+					s.sb.Reset()
+					s.str = s.str[len(term):]
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				s.sb.WriteRune(s.str[0])
+				s.str = s.str[1:]
+			}
 		}
 	}
 
@@ -276,8 +290,8 @@ func (s *separator) separate() []inputStatement {
 	if s.sb.Len() > 0 {
 		if str := strings.TrimSpace(s.sb.String()); len(str) > 0 {
 			statements = append(statements, inputStatement{
-				statement: str,
-				delim:     delimiterUndefined,
+				statement:  str,
+				terminator: "",
 			})
 			s.sb.Reset()
 		}

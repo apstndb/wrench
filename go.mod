@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	cloud.google.com/go/spanner v1.44.0
+	github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/spf13/cobra v1.2.1
